@@ -7,7 +7,7 @@
     "encode-video": "./dist/encodeVideo.js"
   },
   "files": [
-    "./dist"
+    "./dist/*"
   ],
   "scripts": {
     "build": "tsc"
