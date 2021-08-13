@@ -80,6 +80,7 @@ async function main()
             cache.set(cacheId, hash, settings);
 
             const target = path.resolve(destFolder, file.slice(0, -4) + '.mp4');
+            const audioOut = override?.audioOut || group.audioOut || defaults.audioOut;
             if (overwrite || settings.quality != lastSettings.quality || settings.width != lastSettings.width || !await fs.pathExists(target))
             {
                 try
@@ -88,7 +89,7 @@ async function main()
                     // `-profile:v baseline -level 3.0` is for Android compatibility - doesn't support higher profiles
                     // `-movflags +faststart` allows play while downloading
                     // `scale=1280:-2` scales down the video to 1280 wide, height as a multiple of 2
-                    const result = await ffmpeg.run(`-y -i "${fileSrc}" -c:v libx264 -pix_fmt yuv420p -profile:v baseline -level 3.0 -crf ${override?.quality ?? group.quality ?? defaults.quality} -preset veryslow -vf scale=${override?.width ?? group.width ?? defaults.width}:-2 -an -strict experimental -movflags +faststart -threads 0 "${target}"`);
+                    const result = await ffmpeg.run(`-y -i "${fileSrc}" -c:v libx264 -pix_fmt yuv420p -profile:v baseline -level 3.0 -crf ${override?.quality ?? group.quality ?? defaults.quality} -preset veryslow -vf scale=${override?.width ?? group.width ?? defaults.width}:-2 ${audioOut ? '-an' : 'c:a aac'} -strict experimental -movflags +faststart -threads 0 "${target}"`);
                     console.log(`${file} - encoded to mp4`);
                     if (result)
                     {
@@ -105,11 +106,9 @@ async function main()
                 console.log(`${file} - skipped, output exists`);
             }
 
-            const audioOut = override?.audioOut || group.audioOut || defaults.audioOut;
-            let audioDest: string;
             if (audioOut)
             {
-                audioDest = path.resolve(baseSrc, audioOut);
+                const audioDest = path.resolve(baseSrc, audioOut);
                 await fs.ensureDir(audioDest);
                 const audioTarget = path.resolve(audioOut, file.slice(0, -4) + '.wav');
                 if (overwrite || !await fs.pathExists(audioTarget))
