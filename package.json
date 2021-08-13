@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "pre-publish": "build"
+    "prepublish": "build"
   },
   "repository": {
     "type": "git",
