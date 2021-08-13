@@ -8,7 +8,7 @@ import { readCache, writeCache } from './utils';
 import hasha = require('hasha');
 
 const INPUT_TYPES = new Set(['.mov', '.mp4']);
-const CACHE_FILE = '.avevidiocache';
+const CACHE_FILE = '.avevideocache';
 
 async function main()
 {
