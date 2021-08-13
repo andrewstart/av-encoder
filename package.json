@@ -1,0 +1,33 @@
+{
+  "name": "@andrewstart/av-encoder",
+  "version": "1.0.0",
+  "description": "Encodes and compresses audio/video for widely supported web formats",
+  "bin": {
+    "encode-audio": "./dist/encodeAudio.js",
+    "encode-video": "./dist/encodeVideo.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com/andrewstart/av-encoder"
+  },
+  "engines": {
+    "node": ">=12"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/fs-extra": "^9.0.12",
+    "@types/node": "^16.6.1",
+    "typescript": "^4.3.5"
+  },
+  "dependencies": {
+    "commander": "^8.1.0",
+    "ffmpeg-cli": "^2.7.5",
+    "fs-extra": "^10.0.0",
+    "hasha": "^5.2.2",
+    "json5": "^2.2.0"
+  }
+}
