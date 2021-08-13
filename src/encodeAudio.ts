@@ -7,7 +7,7 @@ import { AudioProps, ProjectConfig } from './config';
 import { readCache, writeCache } from './utils';
 import hasha = require('hasha');
 
-const INPUT_TYPES = new Set(['wav', 'aif', 'm4a', 'mp3', 'ogg', 'opus', 'flac']);
+const INPUT_TYPES = new Set(['.wav', '.aif', '.m4a', '.mp3', '.ogg', '.opus', '.flac']);
 const CACHE_FILE = '.aveaudiocache';
 
 // opus -  Opus (Opus Interactive Audio Codec) (decoders: opus libopus ) (encoders: opus libopus )
@@ -63,7 +63,7 @@ async function main()
         {
             // skip files we don't consider input (primarily to ignore .DS_Store files and other garbage)
             if (!INPUT_TYPES.has(path.extname(file))) continue;
-            const cacheId = path.join(group.src + file);
+            const cacheId = path.join(group.src, file);
             const fileSrc = path.resolve(srcFolder, file);
             const hash = await hasha.fromFile(fileSrc, {algorithm: 'md5'});
             let overwrite = false;
@@ -72,8 +72,10 @@ async function main()
                 overwrite = true;
             }
             const override = group.overrides?.[file];
-            const settings = Object.assign({}, defaults, { opusTargetBitrate: group.opusTargetBitrate, mp3Quality: group.mp3Quality }, override);
-            const lastSettings = cache.get(cacheId).settings;
+            const settings = Object.assign({}, defaults, group, override);
+            delete settings.src;
+            delete settings.dest;
+            const lastSettings = cache.get(cacheId)?.settings;
             cache.set(cacheId, hash, settings);
 
             const targetBase = path.resolve(destFolder, file.slice(0, -4));
@@ -100,7 +102,7 @@ async function main()
 
             if (!writes.length)
             {
-                console.log(`${file} - skipped, one or more outputs exists`);
+                console.log(`${file} - skipped, already up to date`);
                 continue;
             }
             try

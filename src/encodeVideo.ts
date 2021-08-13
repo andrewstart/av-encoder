@@ -7,7 +7,7 @@ import { VideoProps, ProjectConfig } from './config';
 import { readCache, writeCache } from './utils';
 import hasha = require('hasha');
 
-const INPUT_TYPES = new Set(['mov', 'mp4']);
+const INPUT_TYPES = new Set(['.mov', '.mp4']);
 const CACHE_FILE = '.avevidiocache';
 
 async function main()
@@ -64,7 +64,7 @@ async function main()
             // skip files we don't consider input (primarily to ignore .DS_Store files and other garbage)
             if (!INPUT_TYPES.has(path.extname(file))) continue;
 
-            const cacheId = path.join(group.src + file);
+            const cacheId = path.join(group.src, file);
             const fileSrc = path.resolve(srcFolder, file);
             const hash = await hasha.fromFile(fileSrc, { algorithm: 'md5' });
             let overwrite = false;
@@ -74,8 +74,10 @@ async function main()
             }
 
             const override = group.overrides?.[file];
-            const settings = Object.assign({}, defaults, { width: group.width, quality: group.quality }, override);
+            const settings = Object.assign({}, defaults, group, override);
             delete settings.audioOut;
+            delete settings.src;
+            delete settings.dest;
             const lastSettings = cache.get(cacheId)?.settings;
             cache.set(cacheId, hash, settings);
 
