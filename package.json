@@ -1,6 +1,6 @@
 {
   "name": "@andrewstart/av-encoder",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Encodes and compresses audio/video for widely supported web formats",
   "bin": {
     "encode-audio": "./dist/encodeAudio.js",
