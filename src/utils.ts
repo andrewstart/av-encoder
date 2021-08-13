@@ -38,7 +38,7 @@ export class Cache<T>
             }
             else
             {
-                file = line.substring(1, line.indexOf(' ', 1));
+                file = line.substring(0, line.indexOf(' ', 1));
                 line = line.substring(line.indexOf(' ') + 1);
             }
             const hash = line.substring(0, line.indexOf(' '));
