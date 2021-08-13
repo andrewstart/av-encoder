@@ -4,6 +4,9 @@
 * `encode-audio`: Takes a list of folders of audio files and converts them to .opus, .caf (opus codec), and .mp3.
 * `encode-video`: Takes a list of folders of video files (currently mp4 & mov) and outputs an mp4 for each, and optionally a .wav audio track.
 
+### Installation
+`npm install @andrewstart/av-encoder`
+
 ### Project Config file
 You'll need to create a JSON5 or JSON formatted project config file, with the default name/location being `./ave-config.json5`.
 
