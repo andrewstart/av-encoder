@@ -112,12 +112,12 @@ async function main()
             {
                 const audioDest = path.resolve(baseSrc, audioOut);
                 await fs.ensureDir(audioDest);
-                const audioTarget = path.resolve(audioOut, file.slice(0, -4) + '.wav');
+                const audioTarget = path.resolve(audioDest, file.slice(0, -4) + '.wav');
                 if (overwrite || !await fs.pathExists(audioTarget))
                 {
                     try
                     {
-                        const audioResult = await ffmpeg.run(`-y -i "${path.resolve(srcFolder, file)}" -c:a pcm_f32le "${audioTarget}"`);
+                        const audioResult = await ffmpeg.run(`-y -i "${fileSrc}" -c:a pcm_f32le "${audioTarget}"`);
                         console.log(`${file} - encoded to wav`);
                         if (audioResult)
                         {
