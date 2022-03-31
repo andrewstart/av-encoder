@@ -3,8 +3,8 @@
   "version": "2.0.1",
   "description": "Encodes and compresses audio/video for widely supported web formats",
   "bin": {
-    "encode-audio": "./dist/encodeAudio.js",
-    "encode-video": "./dist/encodeVideo.js"
+    "encode-audio": "./bin/audio.js",
+    "encode-video": "./bin/video.js"
   },
   "files": [
     "dist/"
