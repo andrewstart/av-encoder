@@ -45,13 +45,12 @@ export class Cache<T>
     {
         const absPath = path.resolve(rootDir, filePath);
         const hash = await hasha.fromFile(absPath, { algorithm: 'md5' });
-        const filename = path.basename(filePath, path.extname(filePath));
         // if not present in cache, return true (add to hashes)
         // if present, remove from unseen, compare hash with hasha, and update hashes if changed
         let changed = true;
-        if (this.hashes.has(filename))
+        if (this.hashes.has(filePath))
         {
-            const data = this.hashes.get(filename);
+            const data = this.hashes.get(filePath);
             if (data.hash == hash)
             {
                 changed = false;
@@ -59,9 +58,9 @@ export class Cache<T>
         }
         if (changed)
         {
-            this.hashes.set(filename, {hash, settings});
+            this.hashes.set(filePath, {hash, settings});
         }
-        this.unseen.delete(filename);
+        this.unseen.delete(filePath);
         return changed;
     }
 

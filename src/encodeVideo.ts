@@ -58,13 +58,13 @@ async function main()
             await glob(group.src, { cwd }),
             async (file) => {
                 const id = path.basename(file, path.extname(file));
-                const override = group.overrides?.[id];
+                const override = group.overrides?.[file];
                 const currentSettings = Object.assign({}, defaults, group, override);
                 delete currentSettings.src;
                 delete currentSettings.dest;
                 delete currentSettings.overrides;
                 delete currentSettings.audioOut;
-                const oldSettings = cache.getSettings(id) || currentSettings;
+                const oldSettings = cache.getSettings(file) || currentSettings;
                 let changed = false;
                 if (currentSettings.quality != oldSettings.quality || currentSettings.width != oldSettings.width)
                 {
@@ -79,8 +79,6 @@ async function main()
                 {
                     const targetBase = path.resolve(destFolder, id);
                     const target = targetBase + '.mp4';
-                    const targetCaf = targetBase + '.caf';
-                    const targetMp3 = targetBase + '.mp3';
                     if (!await fs.pathExists(target))
                     {
                         changed = true;

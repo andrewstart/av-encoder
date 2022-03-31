@@ -44,7 +44,7 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
                 dest: 'assets/vo',
                 // you can also override settings for individual files if so desired
                 overrides: {
-                    'intro': {
+                    'src/vo/intro.wav': {
                         opusTargetBitrate: '48k',
                         mp3Quality: '7'
                     }

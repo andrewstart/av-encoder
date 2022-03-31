@@ -53,12 +53,12 @@ async function main()
             await glob(group.src, { cwd }),
             async (file) => {
                 const id = path.basename(file, path.extname(file));
-                const override = group.overrides?.[id];
+                const override = group.overrides?.[file];
                 const currentSettings = Object.assign({}, defaults, group, override);
                 delete currentSettings.src;
                 delete currentSettings.dest;
                 delete currentSettings.overrides;
-                const oldSettings = cache.getSettings(id) || currentSettings;
+                const oldSettings = cache.getSettings(file) || currentSettings;
                 const changed = {opus: false, mp3: false, caf: false};
                 if (currentSettings.mono != oldSettings.mono)
                 {
