@@ -1,13 +1,12 @@
 import ffmpeg = require('ffmpeg-cli');
 import path = require('path');
 import fs = require('fs-extra');
+import glob from 'fast-glob';
 import { Command } from 'commander';
 import JSON5 = require('json5');
 import { AudioProps, ProjectConfig } from './config';
-import { readCache, writeCache } from './utils';
-import hasha = require('hasha');
+import { filterChanged, Cache } from './utils';
 
-const INPUT_TYPES = new Set(['.wav', '.aif', '.m4a', '.mp3', '.ogg', '.opus', '.flac']);
 const CACHE_FILE = '.aveaudiocache';
 
 // opus -  Opus (Opus Interactive Audio Codec) (decoders: opus libopus ) (encoders: opus libopus )
@@ -40,61 +39,95 @@ async function main()
         return;
     }
 
-    const baseSrc = path.resolve(cwd, config.audio.baseSrc);
-    const baseDest = path.resolve(cwd, config.audio.baseDest);
-    const defaults: AudioProps = config.audio.default || {opusTargetBitrate: '32k', mp3Quality: '9'};
+    const defaults: AudioProps = config.audio.default || {opusTargetBitrate: '32k', mp3Quality: '9', mono: false};
 
-    const cache = await readCache<AudioProps>(CACHE_FILE);
+    const cache = new Cache<AudioProps>(config.audio.cache || CACHE_FILE);
+    await cache.load();
 
     for (const group of config.audio.folders)
     {
-        const srcFolder = path.resolve(baseSrc, group.src);
-        if (!await fs.pathExists(srcFolder))
-        {
-            console.log(`** Source folder does not exist: ${srcFolder} **`);
-            continue;
-        }
-        const destFolder = path.resolve(baseDest, group.dest);
-
+        const destFolder = path.resolve(cwd, group.dest);
         await fs.ensureDir(destFolder);
-        const files = await fs.readdir(srcFolder);
 
-        for (const file of files)
-        {
-            // skip files we don't consider input (primarily to ignore .DS_Store files and other garbage)
-            if (!INPUT_TYPES.has(path.extname(file))) continue;
-            const cacheId = path.join(group.src, file);
-            const fileSrc = path.resolve(srcFolder, file);
-            const hash = await hasha.fromFile(fileSrc, {algorithm: 'md5'});
-            let overwrite = false;
-            if (!cache.has(cacheId) || hash !== cache.get(cacheId).hash)
-            {
-                overwrite = true;
+        const changed = await filterChanged(
+            await glob(group.src, { cwd }),
+            async (file) => {
+                const id = path.basename(file, path.extname(file));
+                const override = group.overrides?.[id];
+                const currentSettings = Object.assign({}, defaults, group, override);
+                delete currentSettings.src;
+                delete currentSettings.dest;
+                delete currentSettings.overrides;
+                const oldSettings = cache.getSettings(id) || currentSettings;
+                const changed = {opus: false, mp3: false, caf: false};
+                if (currentSettings.mono != oldSettings.mono)
+                {
+                    changed.opus = changed.caf = changed.mp3 = true;
+                }
+                if (currentSettings.opusTargetBitrate != oldSettings.opusTargetBitrate)
+                {
+                    changed.opus = true;
+                    changed.caf = true;
+                }
+                if (currentSettings.mp3Quality != oldSettings.mp3Quality)
+                {
+                    changed.mp3 = true;
+                }
+
+                if (await cache.isDifferent(file, cwd, currentSettings))
+                {
+                    changed.opus = changed.caf = changed.mp3 = true;
+                }
+                else
+                {
+                    const targetBase = path.resolve(destFolder, id);
+                    const targetOpus = targetBase + '.opus';
+                    const targetCaf = targetBase + '.caf';
+                    const targetMp3 = targetBase + '.mp3';
+                    if (!await fs.pathExists(targetOpus))
+                    {
+                        changed.opus = true;
+                    }
+                    if (!await fs.pathExists(targetCaf))
+                    {
+                        changed.caf = true;
+                    }
+                    if (!await fs.pathExists(targetMp3))
+                    {
+                        changed.mp3 = true;
+                    }
+                }
+                return Object.keys(changed).filter(k => changed[k]);
             }
-            const override = group.overrides?.[file];
+        );
+
+        for (const file of changed)
+        {
+            const id = path.basename(file.item, path.extname(file.item));
+            const fileSrc = file.item;
+            const override = group.overrides?.[id];
             const settings = Object.assign({}, defaults, group, override);
             delete settings.src;
             delete settings.dest;
-            const lastSettings = cache.get(cacheId)?.settings;
-            cache.set(cacheId, hash, settings);
+            delete settings.overrides;
 
-            const targetBase = path.resolve(destFolder, file.slice(0, -4));
+            const targetBase = path.resolve(destFolder, id);
             const targetOpus = targetBase + '.opus';
             const targetCaf = targetBase + '.caf';
             const targetMp3 = targetBase + '.mp3';
             let writes: string[] = [];
             let encodes: string[] = [];
-            if (overwrite || settings.opusTargetBitrate != lastSettings.opusTargetBitrate || !await fs.pathExists(targetOpus))
+            if (file.modes.includes('opus'))
             {
                 writes.push(`-c:a libopus -b:a ${settings.opusTargetBitrate} "${targetOpus}"`);
                 encodes.push('opus');
             }
-            if (overwrite || settings.opusTargetBitrate != lastSettings.opusTargetBitrate || !await fs.pathExists(targetCaf))
+            if (file.modes.includes('caf'))
             {
                 writes.push(`-c:a libopus -b:a ${settings.opusTargetBitrate} "${targetCaf}"`);
                 encodes.push('caf');
             }
-            if (overwrite || settings.mp3Quality != lastSettings.mp3Quality || !await fs.pathExists(targetMp3))
+            if (file.modes.includes('mp3'))
             {
                 writes.push(`-c:a libmp3lame -q:a ${settings.mp3Quality} "${targetMp3}"`);
                 encodes.push('mp3');
@@ -102,13 +135,13 @@ async function main()
 
             if (!writes.length)
             {
-                console.log(`${file} - skipped, already up to date`);
+                console.log(`${file.item} - skipped, already up to date`);
                 continue;
             }
             try
             {
-                const result = await ffmpeg.run(`-y -i "${fileSrc}" ${writes.join(' ')}`);
-                console.log(`${file} - encoded to ${encodes.join(',')}`);
+                const result = await ffmpeg.run(`-y -i "${fileSrc}" ${settings.mono ? '-ac 1' : ''} ${writes.join(' ')}`);
+                console.log(`${file.item} - encoded to ${encodes.join(',')}`);
                 if (result)
                 {
                     console.log(result);
@@ -120,7 +153,9 @@ async function main()
             }
         }
     }
-    await writeCache(cache, CACHE_FILE);
+
+    cache.purgeUnseen();
+    await cache.save();
 }
 
 main();

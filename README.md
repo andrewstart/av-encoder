@@ -14,37 +14,35 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
 {
     // configuration for audio
     audio: {
-        // root folder for all src paths
-        baseSrc: 'src/audio',
-        // root folder for all dest paths
-        baseDest: 'assets/audio',
         // default properties for audio encoding, if not specified
         default: {
             // Target bitrate for .opus & .caf VBR in the form "<number>k". Lower is lower quality.
             opusTargetBitrate: '32k',
             // Quality for .mp3 VBR, 0-9 with higher being lower quality.
             mp3Quality: '9',
+            // True to force downmixing to mono. False or omit to leave as-is
+            mono: true,
         },
-        // list of source folders and destinations. Source folders are not recursive, and destinations can be
+        // list of source folders and destinations. Source folders are globs, and destinations can be
         // shared.
         folders: [
             {
-                src: 'sfx',
-                dest: 'sfx',
+                src: 'src/sfx/*.wav',
+                dest: 'assets/sfx',
             },
             {
-                src: 'sfx/loops',
-                dest: 'sfx/loops',
+                src: ['src/sfx/loops/*.wav'],
+                dest: 'assets/sfx/loops',
                 // each folder can have specific encoding properties
                 opusTargetBitrate: '48k',
                 mp3Quality: '7'
             },
             {
-                src: 'vo',
-                dest: 'vo',
+                src: 'src/vo/**/*.wav',
+                dest: 'assets/vo',
                 // you can also override settings for individual files if so desired
                 overrides: {
-                    'intro.wav': {
+                    'intro': {
                         opusTargetBitrate: '48k',
                         mp3Quality: '7'
                     }
@@ -54,8 +52,6 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
     },
     // configuration for video is exactly the same as for audio, but with different encoding settings
     video: {
-        baseSrc: 'src/video',
-        baseDest: 'assets/video',
         default: {
             // MP4 quality: 0 is lossless, 23 is default, and 51 is worst possible. 18-28 is a sane range.
             quality: 28,

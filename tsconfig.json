@@ -3,7 +3,9 @@
         "target": "ES2017",
         "moduleResolution": "node",
 		"module": "commonjs",
-		"outDir": "dist"
+		"outDir": "dist",
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
 	},
 	"include": ["src/*.ts"]
 }

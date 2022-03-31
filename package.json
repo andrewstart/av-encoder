@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "node ./dist/encodeAudio.js -c test/test.json5"
   },
   "repository": {
     "type": "git",
@@ -29,6 +30,7 @@
   },
   "dependencies": {
     "commander": "^8.1.0",
+    "fast-glob": "^3.2.11",
     "ffmpeg-cli": "^2.7.5",
     "fs-extra": "^10.0.0",
     "hasha": "^5.2.2",

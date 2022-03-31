@@ -1,13 +1,12 @@
 import ffmpeg = require('ffmpeg-cli');
 import path = require('path');
 import fs = require('fs-extra');
+import glob from 'fast-glob';
 import { Command } from 'commander';
 import JSON5 = require('json5');
 import { VideoProps, ProjectConfig } from './config';
-import { readCache, writeCache } from './utils';
-import hasha = require('hasha');
+import { Cache, filterChanged } from './utils';
 
-const INPUT_TYPES = new Set(['.mov', '.mp4']);
 const CACHE_FILE = '.avevideocache';
 
 async function main()
@@ -45,57 +44,95 @@ async function main()
         return;
     }
 
-    const baseSrc = path.resolve(cwd, config.video.baseSrc);
-    const baseDest = path.resolve(cwd, config.video.baseDest);
     const defaults: VideoProps = config.video.default || { audioOut: null, quality: 28, width: 1280 };
 
-    const cache = await readCache<VideoProps>(CACHE_FILE);
+    const cache = new Cache<VideoProps>(config.video.cache || CACHE_FILE);
+    await cache.load();
 
     for (const group of config.video.folders)
     {
-        const srcFolder = path.resolve(baseSrc, group.src);
-        const destFolder = path.resolve(baseDest, group.dest);
-
+        const destFolder = path.resolve(cwd, group.dest);
         await fs.ensureDir(destFolder);
-        const files = await fs.readdir(srcFolder);
 
-        for (const file of files)
-        {
-            // skip files we don't consider input (primarily to ignore .DS_Store files and other garbage)
-            if (!INPUT_TYPES.has(path.extname(file))) continue;
+        const changed = await filterChanged(
+            await glob(group.src, { cwd }),
+            async (file) => {
+                const id = path.basename(file, path.extname(file));
+                const override = group.overrides?.[id];
+                const currentSettings = Object.assign({}, defaults, group, override);
+                delete currentSettings.src;
+                delete currentSettings.dest;
+                delete currentSettings.overrides;
+                delete currentSettings.audioOut;
+                const oldSettings = cache.getSettings(id) || currentSettings;
+                let changed = false;
+                if (currentSettings.quality != oldSettings.quality || currentSettings.width != oldSettings.width)
+                {
+                    changed = true;
+                }
 
-            const cacheId = path.join(group.src, file);
-            const fileSrc = path.resolve(srcFolder, file);
-            const hash = await hasha.fromFile(fileSrc, { algorithm: 'md5' });
-            let overwrite = false;
-            if (!cache.has(cacheId) || hash !== cache.get(cacheId).hash)
-            {
-                overwrite = true;
+                if (await cache.isDifferent(file, cwd, currentSettings))
+                {
+                    changed = true;
+                }
+                else if (!changed)
+                {
+                    const targetBase = path.resolve(destFolder, id);
+                    const target = targetBase + '.mp4';
+                    const targetCaf = targetBase + '.caf';
+                    const targetMp3 = targetBase + '.mp3';
+                    if (!await fs.pathExists(target))
+                    {
+                        changed = true;
+                    }
+                }
+                return changed ? [''] : null;
             }
+        );
 
-            const override = group.overrides?.[file];
+        for (const file of changed)
+        {
+            const id = path.basename(file.item, path.extname(file.item));
+            const fileSrc = file.item;
+            const override = group.overrides?.[id];
             const settings = Object.assign({}, defaults, group, override);
-            delete settings.audioOut;
+            const audioOut = settings.audioOut;
             delete settings.src;
             delete settings.dest;
-            const lastSettings = cache.get(cacheId)?.settings;
-            cache.set(cacheId, hash, settings);
+            delete settings.overrides;
+            delete settings.audioOut;
 
-            const target = path.resolve(destFolder, file.slice(0, -4) + '.mp4');
-            const audioOut = override?.audioOut || group.audioOut || defaults.audioOut;
-            if (overwrite || settings.quality != lastSettings.quality || settings.width != lastSettings.width || !await fs.pathExists(target))
+            const target = path.resolve(destFolder, id + '.mp4');
+            try
             {
+                // `-pix_fmt yuv420p` is for Quicktime compatibility (w/h must be divisible by 2)
+                // `-profile:v baseline -level 3.0` is for Android compatibility - doesn't support higher profiles
+                // `-movflags +faststart` allows play while downloading
+                // `scale=1280:-2` scales down the video to 1280 wide, height as a multiple of 2
+                const result = await ffmpeg.run(`-y -i "${fileSrc}" -c:v libx264 -pix_fmt yuv420p -profile:v baseline -level 3.0 -crf ${override?.quality ?? group.quality ?? defaults.quality} -preset veryslow -vf scale=${override?.width ?? group.width ?? defaults.width}:-2 ${audioOut ? '-an' : 'c:a aac'} -strict experimental -movflags +faststart -threads 0 "${target}"`);
+                console.log(`${file} - encoded to mp4`);
+                if (result)
+                {
+                    console.log(result);
+                }
+            }
+            catch (e)
+            {
+                console.log('Error:\n', e);
+            }
+
+            if (audioOut)
+            {
+                const audioDest = path.resolve(cwd, audioOut);
+                await fs.ensureDir(audioDest);
+                const audioTarget = path.resolve(audioDest, id + '.wav');
                 try
                 {
-                    // `-pix_fmt yuv420p` is for Quicktime compatibility (w/h must be divisible by 2)
-                    // `-profile:v baseline -level 3.0` is for Android compatibility - doesn't support higher profiles
-                    // `-movflags +faststart` allows play while downloading
-                    // `scale=1280:-2` scales down the video to 1280 wide, height as a multiple of 2
-                    const result = await ffmpeg.run(`-y -i "${fileSrc}" -c:v libx264 -pix_fmt yuv420p -profile:v baseline -level 3.0 -crf ${override?.quality ?? group.quality ?? defaults.quality} -preset veryslow -vf scale=${override?.width ?? group.width ?? defaults.width}:-2 ${audioOut ? '-an' : 'c:a aac'} -strict experimental -movflags +faststart -threads 0 "${target}"`);
-                    console.log(`${file} - encoded to mp4`);
-                    if (result)
+                    const audioResult = await ffmpeg.run(`-y -i "${fileSrc}" -c:a pcm_f32le "${audioTarget}"`);
+                    console.log(`${file} - encoded to wav`);
+                    if (audioResult)
                     {
-                        console.log(result);
+                        console.log(audioResult);
                     }
                 }
                 catch (e)
@@ -103,36 +140,11 @@ async function main()
                     console.log('Error:\n', e);
                 }
             }
-            else
-            {
-                console.log(`${file} - skipped, output exists`);
-            }
-
-            if (audioOut)
-            {
-                const audioDest = path.resolve(baseSrc, audioOut);
-                await fs.ensureDir(audioDest);
-                const audioTarget = path.resolve(audioDest, file.slice(0, -4) + '.wav');
-                if (overwrite || !await fs.pathExists(audioTarget))
-                {
-                    try
-                    {
-                        const audioResult = await ffmpeg.run(`-y -i "${fileSrc}" -c:a pcm_f32le "${audioTarget}"`);
-                        console.log(`${file} - encoded to wav`);
-                        if (audioResult)
-                        {
-                            console.log(audioResult);
-                        }
-                    }
-                    catch (e)
-                    {
-                        console.log('Error:\n', e);
-                    }
-                }
-            }
         }
     }
-    await writeCache(cache, CACHE_FILE);
+
+    cache.purgeUnseen();
+    await cache.save();
 }
 
 main();

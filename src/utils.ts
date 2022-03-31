@@ -1,75 +1,119 @@
 import path = require('path');
 import fs = require('fs-extra');
+import hasha = require('hasha');
 
-export async function readCache<T>(file: string)
+export async function filterChanged<T>(input: T[], test: (item:T) => Promise<string[]|null>): Promise<{item: T, modes: string[]}[]>
 {
-    file = path.resolve(process.cwd(), file);
-    if (!await fs.pathExists(file))
+    const out: {item: T, modes: string[]}[] = [];
+
+    for (const item of input)
     {
-        return new Cache<T>('');
+        const result = await test(item);
+        if (result && result.length)
+        {
+            out.push({item, modes: result});
+        }
     }
-    const text = await fs.readFile(file, 'utf8');
-    return new Cache<T>(text);
-}
 
-export async function writeCache(cache: Cache<any>, file: string)
-{
-    file = path.resolve(process.cwd(), file);
-
-    await fs.writeFile(file, cache.toString());
+    return out;
 }
 
 export class Cache<T>
 {
-    private map: Map<string, {hash:string, settings: T}>;
+    private hashes: Map<string, { hash: string, settings: T }>;
+    private unseen: Set<string>;
+    private cachePath: string;
 
-    constructor(text: string)
+    constructor(cachePath: string)
     {
-        this.map = new Map();
-        const lines = text.split(/\r?\n/);
+        this.hashes = new Map();
+        this.unseen = new Set();
+        this.cachePath = path.resolve(process.cwd(), cachePath);
+    }
+
+    public getSettings(fileId: string): T
+    {
+        if (!this.hashes.has(fileId))
+        {
+            return null;
+        }
+        return this.hashes.get(fileId).settings;
+    }
+
+    /** Doesn't compare settings changes, just ingests them for saving. Only checks for src file changes. */
+    public async isDifferent(filePath: string, rootDir: string, settings: T): Promise<boolean>
+    {
+        const absPath = path.resolve(rootDir, filePath);
+        const hash = await hasha.fromFile(absPath, { algorithm: 'md5' });
+        const filename = path.basename(filePath, path.extname(filePath));
+        // if not present in cache, return true (add to hashes)
+        // if present, remove from unseen, compare hash with hasha, and update hashes if changed
+        let changed = true;
+        if (this.hashes.has(filename))
+        {
+            const data = this.hashes.get(filename);
+            if (data.hash == hash)
+            {
+                changed = false;
+            }
+        }
+        if (changed)
+        {
+            this.hashes.set(filename, {hash, settings});
+        }
+        this.unseen.delete(filename);
+        return changed;
+    }
+
+    public async load()
+    {
+        if (!(await fs.pathExists(this.cachePath)))
+        {
+            return;
+        }
+        const file = await fs.readFile(this.cachePath, 'utf8');
+        const lines = file.split(/\r?\n/);
         for (let line of lines)
         {
             if (!line) continue;
-            let file: string;
+            let fileId: string;
             if (line[0] == '"')
             {
-                file = line.substring(1, line.indexOf('"', 1));
+                fileId = line.substring(1, line.indexOf('"', 1));
                 line = line.substring(line.indexOf('"', 1) + 2);
             }
             else
             {
-                file = line.substring(0, line.indexOf(' ', 1));
+                fileId = line.substring(0, line.indexOf(' ', 1));
                 line = line.substring(line.indexOf(' ') + 1);
             }
             const hash = line.substring(0, line.indexOf(' '));
             line = line.substring(line.indexOf(' ') + 1);
             const settings = JSON.parse(line);
-            this.map.set(file, {hash, settings});
+            this.hashes.set(fileId, { hash, settings });
+            this.unseen.add(fileId);
         }
     }
 
-    public has(file: string)
-    {
-        return this.map.has(file);
-    }
-
-    public set(file: string, hash:string, settings: T)
-    {
-        this.map.set(file, {hash, settings});
-    }
-
-    public get(file: string)
-    {
-        return this.map.get(file);
-    }
-
-    public toString()
+    public async save()
     {
         let text = '';
-        for (const [file, data] of this.map.entries())
+        for (const [fileId, data] of this.hashes.entries())
         {
-            text += `${file.includes(' ') ? `"${file}"` : file} ${data.hash} ${JSON.stringify(data.settings)}\n`;
+            text += `${fileId.includes(' ') ? `"${fileId}"` : fileId} ${data.hash} ${JSON.stringify(data.settings)}\n`;
         }
-        return text;
+        await fs.writeFile(this.cachePath, text);
+    }
+
+    public purgeUnseen(): string[]
+    {
+        const missing = Array.from(this.unseen.values());
+        for (const id of missing)
+        {
+            this.hashes.delete(id);
+        }
+        this.unseen.clear();
+
+        return missing;
     }
 }

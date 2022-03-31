@@ -10,17 +10,13 @@ export interface ProjectConfig
 export interface DirectoryListing<T>
 {
     /**
-     * Base source path that all src folders are relative to
-     */
-    baseSrc: string;
-    /**
-     * Base destination path that all dest folders are relative to
-     */
-    baseDest: string;
-    /**
      * Default settings for this configuration
      */
     default?: T;
+    /**
+     * Cache file location/name
+     */
+    cache?: string;
     /**
      * List of folders with destinations and any specific settings
      */
@@ -29,7 +25,7 @@ export interface DirectoryListing<T>
 
 export interface FolderListing<T>
 {
-    src: string;
+    src: string[]|string;
     dest: string;
     /**
      * List of filenames to override settings for.
@@ -47,6 +43,10 @@ export interface AudioProps
      * 0-9, higher is lower quality.
      */
     mp3Quality: string;
+    /**
+     * If mono should be forced.
+     */
+    mono: boolean;
 }
 
 export interface VideoProps

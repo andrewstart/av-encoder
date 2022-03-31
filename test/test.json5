@@ -1,0 +1,16 @@
+{
+    audio: {
+        cache: 'test/.audiocache',
+        default: {
+            opusTargetBitrate: '32k',
+            mp3Quality: '9',
+            mono: true,
+        },
+        folders: [
+            {
+                src: 'test/src/*.wav',
+                dest: 'test/out',
+            },
+        ],
+    }
+}
