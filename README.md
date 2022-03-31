@@ -14,6 +14,8 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
 {
     // configuration for audio
     audio: {
+        // Optional, name a cache file to use instead of the default. This allows only changed files to be rerun in later runs.
+        cache: "path/to/.cachefile",
         // default properties for audio encoding, if not specified
         default: {
             // Target bitrate for .opus & .caf VBR in the form "<number>k". Lower is lower quality.
@@ -52,6 +54,8 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
     },
     // configuration for video is exactly the same as for audio, but with different encoding settings
     video: {
+        // Optional, name a cache file to use instead of the default. This allows only changed files to be rerun in later runs.
+        cache: "path/to/.cachefile",
         default: {
             // MP4 quality: 0 is lossless, 23 is default, and 51 is worst possible. 18-28 is a sane range.
             quality: 28,
@@ -69,4 +73,4 @@ You'll need to create a JSON5 or JSON formatted project config file, with the de
 ```
 
 ### Project cache files
-Files for audio & video caches to track which files need to be encoded and which don't will be created in your project. `.aveaudiocache` and `.avevidiocache` will be created when encoding audio and video, respectively. If your output files are tracked with version control, then these cache files should be tracked as well.
+Files for audio & video caches to track which files need to be encoded and which don't will be created in your project. `.aveaudiocache` and `.avevidiocache` (or your project values) will be created when encoding audio and video, respectively. If your output files are tracked with version control, then these cache files should be tracked as well.
