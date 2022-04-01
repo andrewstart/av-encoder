@@ -49,10 +49,16 @@ async function main()
     const cache = new Cache<VideoProps>(config.video.cache || CACHE_FILE);
     await cache.load();
 
+    const destFolders: string[] = [];
+
     for (const group of config.video.folders)
     {
         const destFolder = path.resolve(cwd, group.dest);
         await fs.ensureDir(destFolder);
+        if (!destFolders.includes(destFolder))
+        {
+            destFolders.push(destFolder);
+        }
 
         const changed = await filterChanged(
             await glob(group.src, { cwd }),
@@ -141,8 +147,24 @@ async function main()
         }
     }
 
-    cache.purgeUnseen();
+    const missing = cache.purgeUnseen();
     await cache.save();
+
+    if (config.audio.removeMissing)
+    {
+        for (const file of missing)
+        {
+            const base = path.basename(file, path.extname(file));
+            for (const folder of destFolders)
+            {
+                const filePath = path.resolve(folder, base + '.mp4');
+                if (await fs.pathExists(filePath))
+                {
+                    await fs.remove(filePath);
+                }
+            }
+        }
+    }
 }
 
 main();

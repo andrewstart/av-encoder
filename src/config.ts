@@ -21,6 +21,11 @@ export interface DirectoryListing<T>
      * List of folders with destinations and any specific settings
      */
     folders: (FolderListing<T> & Partial<T>)[];
+    /**
+     * If output from missing source files should be removed.
+     * If you use multiple output folders per project file, this could be unintentionally destructive.
+     */
+    removeMissing?: boolean;
 }
 
 export interface FolderListing<T>

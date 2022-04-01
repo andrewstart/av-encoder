@@ -44,10 +44,16 @@ async function main()
     const cache = new Cache<AudioProps>(config.audio.cache || CACHE_FILE);
     await cache.load();
 
+    const destFolders: string[] = [];
+
     for (const group of config.audio.folders)
     {
         const destFolder = path.resolve(cwd, group.dest);
         await fs.ensureDir(destFolder);
+        if (!destFolders.includes(destFolder))
+        {
+            destFolders.push(destFolder);
+        }
 
         const changed = await filterChanged(
             await glob(group.src, { cwd }),
@@ -154,8 +160,28 @@ async function main()
         }
     }
 
-    cache.purgeUnseen();
+    const missing = cache.purgeUnseen();
     await cache.save();
+
+    if (config.audio.removeMissing)
+    {
+        const exts = ['.mp3', '.opus', '.caf'];
+        for (const file of missing)
+        {
+            const base = path.basename(file, path.extname(file));
+            for (const folder of destFolders)
+            {
+                for (const ext of exts)
+                {
+                    const filePath = path.resolve(folder, base + ext);
+                    if (await fs.pathExists(filePath))
+                    {
+                        await fs.remove(filePath);
+                    }
+                }
+            }
+        }
+    }
 }
 
 main();
