@@ -52,6 +52,8 @@ export interface AudioProps
      * If mono should be forced.
      */
     mono: boolean;
+    /** List of formats to output to. Defaults to `["opus", "caf", "mp3"]`. */
+    formats?: ('opus'|'caf'|'webm'|'mp3')[];
 }
 
 export interface VideoProps

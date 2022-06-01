@@ -40,6 +40,10 @@ async function main()
     }
 
     const defaults: AudioProps = config.audio.default || {opusTargetBitrate: '32k', mp3Quality: '9', mono: false};
+    if (!defaults.formats)
+    {
+        defaults.formats = ['opus', 'caf', 'mp3'];
+    }
 
     const cache = new Cache<AudioProps>(config.audio.cache || CACHE_FILE);
     await cache.load();
@@ -61,19 +65,22 @@ async function main()
                 const id = path.basename(file, path.extname(file));
                 const override = group.overrides?.[file];
                 const currentSettings = Object.assign({}, defaults, group, override);
+                const formats = currentSettings.formats;
                 delete currentSettings.src;
                 delete currentSettings.dest;
                 delete currentSettings.overrides;
+                delete currentSettings.formats;
                 const oldSettings = cache.getSettings(file) || currentSettings;
-                const changed = {opus: false, mp3: false, caf: false};
+                const changed = {opus: false, mp3: false, caf: false, webm: false};
                 if (currentSettings.mono != oldSettings.mono)
                 {
-                    changed.opus = changed.caf = changed.mp3 = true;
+                    changed.opus = changed.caf = changed.mp3 = changed.webm = true;
                 }
                 if (currentSettings.opusTargetBitrate != oldSettings.opusTargetBitrate)
                 {
                     changed.opus = true;
                     changed.caf = true;
+                    changed.webm = true;
                 }
                 if (currentSettings.mp3Quality != oldSettings.mp3Quality)
                 {
@@ -82,13 +89,14 @@ async function main()
 
                 if (await cache.isDifferent(file, cwd, currentSettings))
                 {
-                    changed.opus = changed.caf = changed.mp3 = true;
+                    changed.opus = changed.caf = changed.mp3 = changed.webm = true;
                 }
                 else
                 {
                     const targetBase = path.resolve(destFolder, id);
                     const targetOpus = targetBase + '.opus';
                     const targetCaf = targetBase + '.caf';
+                    const targetWebm = targetBase + '.webm';
                     const targetMp3 = targetBase + '.mp3';
                     if (!await fs.pathExists(targetOpus))
                     {
@@ -98,12 +106,16 @@ async function main()
                     {
                         changed.caf = true;
                     }
+                    if (!await fs.pathExists(targetWebm))
+                    {
+                        changed.webm = true;
+                    }
                     if (!await fs.pathExists(targetMp3))
                     {
                         changed.mp3 = true;
                     }
                 }
-                return Object.keys(changed).filter(k => changed[k]);
+                return Object.keys(changed).filter(k => changed[k] && formats.includes(k as keyof typeof changed));
             }
         );
 
@@ -120,6 +132,7 @@ async function main()
             const targetBase = path.resolve(destFolder, id);
             const targetOpus = targetBase + '.opus';
             const targetCaf = targetBase + '.caf';
+            const targetWebm = targetBase + '.webm';
             const targetMp3 = targetBase + '.mp3';
             let writes: string[] = [];
             let encodes: string[] = [];
@@ -132,6 +145,11 @@ async function main()
             {
                 writes.push(`-c:a libopus -b:a ${settings.opusTargetBitrate} "${targetCaf}"`);
                 encodes.push('caf');
+            }
+            if (file.modes.includes('webm'))
+            {
+                writes.push(`-c:a libopus -b:a ${settings.opusTargetBitrate} "${targetWebm}"`);
+                encodes.push('webm');
             }
             if (file.modes.includes('mp3'))
             {
